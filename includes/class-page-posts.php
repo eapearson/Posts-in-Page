@@ -140,6 +140,12 @@ class ICPagePosts {
 			// unset our unneeded variables
 			unset( $category, $term, $exclude );
 		}
+		
+		// Date filtering. This is the minimal for now, but should be extended to 
+		// cover all of the date filters.
+        if ( isset($atts['year']) ) {
+          $this->args['year'] = intval($atts['year']);
+        }
 
 		// show number of posts (default is 10, showposts or posts_per_page are both valid, only one is needed)
 		if ( isset( $atts['showposts'] ) )
