@@ -38,15 +38,18 @@ class ICPagePosts {
 		if ( !$this->args )
 			return '';
 		$page_posts = apply_filters( 'posts_in_page_results', new WP_Query( $this->args ) ); // New WP_Query object
-		$output = '';
+    # add post type to classes to wrap.
+    # $postTypeClass = $page_posts->post_type;    
+		$output = '<div class="ivycat-wrapper">';
 		if ( $page_posts->have_posts() ) {
 			while ( $page_posts->have_posts() ):
 			$output .= self::add_template_part( $page_posts );
 			endwhile;
 			$output .= ( $this->args['paginate'] ) ? '<div class="pip-nav">' . apply_filters( 'posts_in_page_paginate', $this->paginate_links( $page_posts ) ) . '</div>' : '';
 		} else {
-			$output = '<div class="post hentry ivycat-post"><span class="pip-not-found">' . esc_html( $this->args['none_found'] ) . '</span></div>';
+			$output .= '<div class="post hentry ivycat-post"><span class="pip-not-found">' . esc_html( $this->args['none_found'] ) . '</span></div>';
 		}
+    $output .= '</div>';
 		wp_reset_postdata();
 
 		remove_filter( 'excerpt_more', array( &$this, 'custom_excerpt_more' ) );
@@ -73,6 +76,7 @@ class ICPagePosts {
 	 *	@param array $atts Attritubes for building the $args array.
 	 */
 	protected function set_args( $atts ) {
+    
 		global $wp_query;
 		$this->args['posts_per_page'] = get_option( 'posts_per_page' );
 		// parse the arguments using the defaults
@@ -174,7 +178,7 @@ class ICPagePosts {
 				$this->args['post__not_in'] = $exclude_posts;
 			}
 		}
-
+    
 		$current_time_value = current_time( 'timestamp' );
 		if ( isset( $atts['date'] ) ) {
 			$date_data = explode( '-', $atts['date'] );
@@ -212,8 +216,60 @@ class ICPagePosts {
 						'year'  => $year,
 						);
 					break;
+        case 'afternow':
+          if (isset($this->args['date_column'])) {
+            $dateCol = $this->args['date_column'];
+          } else {
+            $dateCol = 'post_date';
+          }
+          $this->args['date_query'] = [
+            'after' => (new DateTime)->format('c'),
+            'column' => $dateCol
+          ];
 			}
 		}
+    
+    // simple meta query -- just a single field -- and only supporting string.
+    if (isset($atts['meta_query'])) {
+        $metaQuery = explode(',', $atts['meta_query']);
+        # $this->args['meta_key'] = $atts['meta_key'];
+        # field,value,comparison,type
+        # comparison defaults to = and type to string
+        if (isset($metaQuery[2])) {
+          $compare = $metaQuery[2];
+          switch ($compare) {
+            case 'eq': $compare = '='; break;
+            case 'le': $compare = '<='; break;
+            case 'lt': $compare = '<'; break;
+            case 'ge': $compare = '>='; break;
+            case 'gt': $compare = '>'; break;
+          }
+        } else {
+          $compare = '=';
+        }
+        
+        if (isset($metaQuery[3])) {
+          $type = $metaQuery[3];
+        } else {
+          $type = 'STRING';
+        }
+        
+        $value = $metaQuery[1];
+        if ($value === '@nowdate') {
+          $value = (new DateTime)->format('Ymd');
+          $type = 'DATE';
+        }
+        
+        $mq = [
+          'key' => $metaQuery[0],
+          'value' => $value,
+          'compare' => $compare,
+          'type' => $type
+        ];
+        
+        $this->args['meta_query'] = [$mq];
+    }
+   
 		$this->args = apply_filters( 'posts_in_page_args', $this->args );
 	}
 
@@ -233,6 +289,7 @@ class ICPagePosts {
 	 *	@return true if template exists, false otherwise.
 	 */
 	protected function has_theme_template() {
+    
 		$template_file = ( $this->args['template'] )
 			? get_stylesheet_directory()  . '/' . $this->args['template'] // use specified template file
 			: get_stylesheet_directory() . '/posts_loop_template.php'; // use default template file
